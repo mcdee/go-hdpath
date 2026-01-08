@@ -28,10 +28,10 @@ func Parse(input string) (*Path, error) {
 	if elements[0] != rootElement {
 		return nil, ErrPathInvalid
 	}
-	if len(elements) < 2 {
+	elements = elements[1:]
+	if len(elements) == 0 {
 		return nil, ErrPathInvalid
 	}
-	elements = elements[1:]
 
 	res := &Path{
 		elements: make([]*element, len(elements)),
@@ -87,7 +87,7 @@ func (p *Path) Values() ([]uint32, error) {
 }
 
 // String provides a string representation of the path.
-func (p Path) String() string {
+func (p *Path) String() string {
 	elements := make([]string, len(p.elements)+1)
 	elements[0] = rootElement
 	for i := range p.elements {
