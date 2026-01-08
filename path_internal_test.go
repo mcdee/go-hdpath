@@ -22,9 +22,10 @@ func TestPathValues(t *testing.T) {
 	ten := uint32(10)
 
 	tests := []struct {
-		name string
-		path Path
-		res  []uint32
+		name     string
+		path     Path
+		instance uint32
+		res      []uint32
 	}{
 		{
 			name: "Empty",
@@ -33,12 +34,12 @@ func TestPathValues(t *testing.T) {
 		{
 			name: "Good",
 			path: Path{
-				elements: []element{
+				elements: []*element{
 					{
-						instance: &ten,
+						index: &ten,
 					},
 					{
-						instance: &ten,
+						index:    &ten,
 						hardened: true,
 					},
 				},
@@ -49,7 +50,10 @@ func TestPathValues(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			res := (test.path.Values())
+			res, err := test.path.Values()
+			if err != nil {
+				t.Fatalf("received unexpected error %v", err)
+			}
 			if !reflect.DeepEqual(res, test.res) {
 				t.Errorf("expected %v, received %v", test.res, res)
 			}

@@ -25,42 +25,32 @@ const (
 )
 
 type element struct {
-	instance *uint32
+	index    *uint32
 	hardened bool
 }
 
-func (e element) String(vals ...uint32) string {
-	switch {
-	case e.instance != nil:
-		if e.hardened {
-			return fmt.Sprintf("%d%s", *e.instance, hardenedElement)
-		}
-
-		return fmt.Sprintf("%d", *e.instance)
-	case len(vals) == 0:
-		if e.hardened {
-			return variableElement + hardenedElement
-		}
-
-		return variableElement
-	default:
-		val := vals[0]
-		if e.hardened {
-			return fmt.Sprintf("%d%s", val, hardenedElement)
-		}
-
-		return fmt.Sprintf("%d", val)
+func (e *element) String() string {
+	hardenedStr := ""
+	if e.hardened {
+		hardenedStr = hardenedElement
 	}
+
+	variableStr := variableElement
+	if e.index != nil {
+		variableStr = fmt.Sprintf("%d", *e.index)
+	}
+
+	return fmt.Sprintf("%s%s", variableStr, hardenedStr)
 }
 
-func parseElement(input string) (element, error) {
-	res := element{
-		instance: nil,
+func parseElement(input string) (*element, error) {
+	res := &element{
+		index:    nil,
 		hardened: false,
 	}
 
 	if input == "" {
-		return res, ErrElementMissing
+		return nil, ErrElementMissing
 	}
 
 	if strings.HasSuffix(input, hardenedElement) {
@@ -78,18 +68,31 @@ func parseElement(input string) (element, error) {
 	}
 	value := uint32(val)
 
-	res.instance = &value
+	res.index = &value
 
 	return res, nil
 }
 
-func (e element) value() (uint32, error) {
-	switch {
-	case e.instance == nil:
-		return 0, ErrElementUnresolved
-	case e.hardened:
-		return *e.instance + hard, nil
-	default:
-		return *e.instance, nil
+func (e *element) instance(i uint32) *element {
+	if e.index == nil {
+		return &element{
+			index:    &i,
+			hardened: e.hardened,
+		}
 	}
+
+	return e
+}
+
+func (e *element) value() (uint32, error) {
+	if e.index == nil {
+		return 0, ErrElementUnresolved
+	}
+
+	val := *e.index
+	if e.hardened {
+		val += hard
+	}
+
+	return val, nil
 }

@@ -25,38 +25,38 @@ func TestParseElement(t *testing.T) {
 	tests := []struct {
 		name  string
 		input string
-		res   element
+		res   *element
 		err   error
 	}{
 		{
 			name: "Empty",
-			res:  element{},
+			res:  &element{},
 			err:  ErrElementMissing,
 		},
 		{
 			name:  "Value",
 			input: "10",
-			res: element{
-				instance: &ten,
+			res: &element{
+				index: &ten,
 			},
 		},
 		{
 			name:  "HardenedValue",
 			input: "10'",
-			res: element{
-				instance: &ten,
+			res: &element{
+				index:    &ten,
 				hardened: true,
 			},
 		},
 		{
 			name:  "Variable",
 			input: "n",
-			res:   element{},
+			res:   &element{},
 		},
 		{
 			name:  "HardenedVariable",
 			input: "n'",
-			res: element{
+			res: &element{
 				hardened: true,
 			},
 		},
@@ -94,59 +94,65 @@ func TestParseElement(t *testing.T) {
 
 func TestElementString(t *testing.T) {
 	ten := uint32(10)
+	onetwothreefourfive := uint32(12345)
 
 	tests := []struct {
-		name string
-		e    element
-		vals []uint32
-		res  string
+		name     string
+		e        *element
+		instance *uint32
+		res      string
 	}{
 		{
 			name: "Value",
-			e: element{
-				instance: &ten,
+			e: &element{
+				index: &ten,
 			},
 			res: "10",
 		},
 		{
 			name: "HardenedValue",
-			e: element{
-				instance: &ten,
+			e: &element{
+				index:    &ten,
 				hardened: true,
 			},
 			res: "10'",
 		},
 		{
 			name: "Variable",
-			e:    element{},
+			e:    &element{},
 			res:  "n",
 		},
 		{
 			name: "HardenedVariable",
-			e: element{
+			e: &element{
 				hardened: true,
 			},
 			res: "n'",
 		},
 		{
-			name: "ResolvedVariable",
-			e:    element{},
-			vals: []uint32{12345},
-			res:  "12345",
+			name:     "ResolvedVariable",
+			e:        &element{},
+			instance: &onetwothreefourfive,
+			res:      "12345",
 		},
 		{
 			name: "HardenedResolvedVariable",
-			e: element{
+			e: &element{
 				hardened: true,
 			},
-			vals: []uint32{12345},
-			res:  "12345'",
+			instance: &onetwothreefourfive,
+			res:      "12345'",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			res := test.e.String(test.vals...)
+			e := test.e
+			if test.instance != nil {
+				e = test.e.instance(*test.instance)
+			}
+
+			res := e.String()
 			if res != test.res {
 				t.Errorf("expected %v, received %v", test.res, res)
 			}
@@ -154,58 +160,53 @@ func TestElementString(t *testing.T) {
 	}
 }
 
-func TestElementValue(t *testing.T) {
+func TestValue(t *testing.T) {
 	ten := uint32(10)
 
 	tests := []struct {
-		name string
-		e    element
-		res  uint32
-		err  error
+		name     string
+		e        element
+		instance uint32
+		res      uint32
+		err      error
 	}{
-		{
-			name: "Empty",
-			e:    element{},
-			err:  ErrElementUnresolved,
-		},
 		{
 			name: "Ten",
 			e: element{
-				instance: &ten,
+				index: &ten,
 			},
 			res: 10,
 		},
 		{
 			name: "TenHardened",
 			e: element{
-				instance: &ten,
+				index:    &ten,
 				hardened: true,
 			},
 			res: 2147483658,
+		},
+		{
+			name: "Unresolved",
+			e: element{
+				hardened: true,
+			},
+			err: ErrElementUnresolved,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			res, err := test.e.value()
-			switch {
-			case test.err != nil:
-				switch err {
-				case nil:
-					t.Errorf("expected error %v, received no error", test.err)
-				default:
-					if !errors.Is(err, test.err) {
-						t.Errorf("expected error %v, received error %v", test.err, err)
-					}
+			if test.err != nil {
+				if test.err != err {
+					t.Fatalf("expected error %v, received error %v", test.err, err)
 				}
-			default:
-				switch {
-				case err != nil:
-					t.Errorf("expected no error, received error %q", err)
-				default:
-					if res != test.res {
-						t.Errorf("expected %v, received %v", test.res, res)
-					}
+			} else {
+				if err != nil {
+					t.Errorf("received unexpected error %v", err)
+				}
+				if res != test.res {
+					t.Errorf("expected %v, received %v", test.res, res)
 				}
 			}
 		})

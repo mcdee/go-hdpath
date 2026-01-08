@@ -30,7 +30,7 @@ Please read the [Go documentation for this library](https://godoc.org/github.com
 
 ## Example
 
-Below is a complete annotated example to generate multiple keys given a path template.
+Below is a complete annotated example to generate multiple keys given a path.
 
 ```go
 package main
@@ -43,15 +43,22 @@ import (
 )
 
 func main() {
-        // The template uses 'n' to signify the instance; other values are static.
-        template, err := hdpath.Parse("m/44'/0'/n'/0/0")
+        // The path string uses 'n' to signify the instance; other values are static.
+        path, err := hdpath.Parse("m/44'/0'/n'/0/0")
         if err != nil {
-                fmt.Fprintf(os.Stderr, "Failed to parse template: %v\n", err)
+                fmt.Fprintf(os.Stderr, "Failed to parse path: %v\n", err)
         }
+        fmt.Fprintf(os.Stdout, "Unresolved path is %s\n", path.String())
 
         for i := range uint32(5) {
-                path := template.Instance(i)
-                fmt.Fprintf(os.Stdout, "Instance %d path is %s with values %v\n", i, path.String(), path.Values())
+                // Use path.Instance() to create a path with the instance variable resolved.
+                resolvedPath := path.Instance(i)
+                values, err := resolvedPath.Values()
+                if err != nil {
+                        // An error will be thrown if an attempt is made to obtain values on a path without a resolved instance.
+                        fmt.Fprintf(os.Stderr, "Values() called on an unresolved path: %v\n", err)
+                }
+                fmt.Fprintf(os.Stdout, "Instance %d path is %s with values %v\n", i, resolvedPath.String(), values)
         }
 }
 ```

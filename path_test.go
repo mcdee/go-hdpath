@@ -14,39 +14,109 @@
 package hdpath_test
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 
 	"github.com/mcdee/go-hdpath"
 )
 
-func TestPathString(t *testing.T) {
+func TestParse(t *testing.T) {
 	tests := []struct {
-		name string
-		p    *hdpath.Path
-		vals []uint32
-		res  string
+		name  string
+		input string
+		res   *hdpath.Path
+		err   error
 	}{
 		{
-			name: "Root",
-			p:    hdpath.MustParse("m/44'/0'/n'/0/0").Instance(0),
-			res:  "m/44'/0'/0'/0/0",
+			name:  "Empty",
+			input: "",
+			err:   hdpath.ErrPathInvalid,
 		},
 		{
-			name: "Variable",
-			p:    hdpath.MustParse("m/44'/0'/n'/0/0").Instance(1),
-			res:  "m/44'/0'/1'/0/0",
+			name:  "RootOnly",
+			input: "m",
+			err:   hdpath.ErrPathInvalid,
 		},
 		{
-			name: "ResolvedVariable",
-			p:    hdpath.MustParse("m/44'/0'/n'/0/0").Instance(12345),
-			res:  "m/44'/0'/12345'/0/0",
+			name:  "SingleElement",
+			input: "m/44",
+			res:   hdpath.MustParse("m/44"),
+		},
+		{
+			name:  "InvalidElement",
+			input: "m/44'/0'/x/0/0",
+			err:   hdpath.ErrElementInvalid,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			res := test.p.String()
+			res, err := hdpath.Parse(test.input)
+			if test.err != nil {
+				if !errors.Is(err, test.err) {
+					t.Fatalf("expected error %v, received error %v", test.err, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("received unexpected error %v", err)
+				}
+				if !reflect.DeepEqual(res, test.res) {
+					t.Errorf("expected %v, received %v", test.res, res)
+				}
+			}
+		})
+	}
+}
+
+func TestString(t *testing.T) {
+	zero := uint32(0)
+	one := uint32(1)
+	onetwothreefourfive := uint32(12345)
+	tests := []struct {
+		name     string
+		p        *hdpath.Path
+		instance *uint32
+		res      string
+	}{
+		{
+			name: "Unresolved",
+			p:    hdpath.MustParse("m/44'/0'/n/0/0"),
+			res:  "m/44'/0'/n/0/0",
+		},
+		{
+			name: "UnresolvedHardened",
+			p:    hdpath.MustParse("m/44'/0'/n'/0/0"),
+			res:  "m/44'/0'/n'/0/0",
+		},
+		{
+			name:     "Zero",
+			p:        hdpath.MustParse("m/44'/0'/n'/0/0"),
+			instance: &zero,
+			res:      "m/44'/0'/0'/0/0",
+		},
+		{
+			name:     "One",
+			p:        hdpath.MustParse("m/44'/0'/n'/0/0"),
+			instance: &one,
+			res:      "m/44'/0'/1'/0/0",
+		},
+		{
+			name:     "OneTwoThreeFourFive",
+			p:        hdpath.MustParse("m/44'/0'/n'/0/0"),
+			instance: &onetwothreefourfive,
+			res:      "m/44'/0'/12345'/0/0",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			p := test.p
+			if test.instance != nil {
+				p = p.Instance(*test.instance)
+			}
+
+			res := p.String()
 			if res != test.res {
 				t.Errorf("expected %v, received %v", test.res, res)
 			}
@@ -55,14 +125,24 @@ func TestPathString(t *testing.T) {
 }
 
 func TestValues(t *testing.T) {
+	onetwothreefourfive := uint32(12345)
+
 	tests := []struct {
-		name string
-		p    *hdpath.Path
-		res  []uint32
+		name     string
+		p        *hdpath.Path
+		instance *uint32
+		res      []uint32
+		err      error
 	}{
 		{
-			name: "Static",
-			p:    hdpath.MustParse("m/44'/0'/n'/0/0").Instance(12345),
+			name: "Unresolved",
+			p:    hdpath.MustParse("m/44'/0'/n'/0/0"),
+			err:  hdpath.ErrElementUnresolved,
+		},
+		{
+			name:     "Resolved",
+			p:        hdpath.MustParse("m/44'/0'/n'/0/0"),
+			instance: &onetwothreefourfive,
 			res: []uint32{
 				44 + 0x80000000,
 				0 + 0x80000000,
@@ -75,9 +155,22 @@ func TestValues(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			res := test.p.Values()
-			if !reflect.DeepEqual(res, test.res) {
-				t.Errorf("expected %v, received %v", test.res, res)
+			p := test.p
+			if test.instance != nil {
+				p = p.Instance(*test.instance)
+			}
+			res, err := p.Values()
+			if test.err != nil {
+				if test.err != err {
+					t.Fatalf("expected error %v, received error %v", test.err, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("received unexpected error %v", err)
+				}
+				if !reflect.DeepEqual(res, test.res) {
+					t.Errorf("expected %v, received %v", test.res, res)
+				}
 			}
 		})
 	}

@@ -14,30 +14,76 @@
 package hdpath
 
 import (
-	"fmt"
 	"strings"
 )
 
-// Path is a fully formed hierarchical path, with all values supplied.
+// Path is a hierarchical derivation path with one element potentially set to "n".
 type Path struct {
-	elements []element
+	elements []*element
+}
+
+// Parse parses a path.
+func Parse(input string) (*Path, error) {
+	elements := strings.Split(input, elementSeparator)
+	if elements[0] != rootElement {
+		return nil, ErrPathInvalid
+	}
+	if len(elements) < 2 {
+		return nil, ErrPathInvalid
+	}
+	elements = elements[1:]
+
+	res := &Path{
+		elements: make([]*element, len(elements)),
+	}
+
+	var err error
+	for i := range elements {
+		res.elements[i], err = parseElement(elements[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return res, nil
+}
+
+// MustParse parses a path, panicking on an invalid input.
+func MustParse(input string) *Path {
+	res, err := Parse(input)
+	if err != nil {
+		panic(err)
+	}
+
+	return res
+}
+
+// Instance generates a fully resolved path.
+func (p *Path) Instance(instance uint32) *Path {
+	path := &Path{
+		elements: make([]*element, len(p.elements)),
+	}
+
+	for i := range p.elements {
+		path.elements[i] = p.elements[i].instance(instance)
+	}
+
+	return path
 }
 
 // Values provides the numeric values for the hierarchical path.
-func (p Path) Values() []uint32 {
+func (p *Path) Values() ([]uint32, error) {
 	res := make([]uint32, len(p.elements))
 
 	var err error
 	for i := range p.elements {
 		res[i], err = p.elements[i].value()
 		if err != nil {
-			// This should never happen, because paths are only created by Template.Instance(), and that function ensures that
-			// every element has a value assigned to it during creation.
-			panic(fmt.Sprintf("malformed path element at %d", i))
+			return nil, err
 		}
 	}
 
-	return res
+	return res, nil
 }
 
 // String provides a string representation of the path.
